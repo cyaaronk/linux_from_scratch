@@ -1,0 +1,22 @@
+--- autoconf-2.69/tests/tools.at.orig	2018-09-21 18:55:37.637947689 +0000
++++ autoconf-2.69/tests/tools.at	2018-09-21 18:57:04.683946242 +0000
+@@ -155,8 +155,8 @@
+   file=" file $funny"
+   outfile="$file out "
+   dir=`func_sanitize_dir_name " dir $funny"`
+-  cachedir=" cache$dir"
+-  TMPDIR=" tmp$dir"
++  cachedir="./ cache$dir"
++  TMPDIR="./ tmp$dir"
+   export TMPDIR
+ 
+   # skip if we cannot create such a file or directory
+@@ -1290,7 +1290,7 @@
+   funny=`func_sanitize_file_name "$funny"`
+   file=" file $funny"
+   dir=`func_sanitize_dir_name " dir $funny"`
+-  TMPDIR=" tmp$dir"
++  TMPDIR="./ tmp$dir"
+   export TMPDIR
+ 
+   # skip if we cannot create such a file or directory

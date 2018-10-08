@@ -1,0 +1,48 @@
+PRGNAM=linux_api_headers
+VERSION=4.15.3
+ARCH=$( uname -m )
+BUILD=${BUILD:-1}
+TAG=${TAG:-_LFS}
+
+SRC=${SRC:-${LFS}/sources}
+SBDOC=${SBDOC:-${LFS}/sbdoc}
+TMP=${TMP:-/tmp/SBc}
+PKG=$TMP/package-${PRGNAM}
+BLDDIR=$TMP/blddir-${PRGNAM}
+OUTPUT=${OUTPUT:-${LFS}/packages}
+
+PREFIX=/usr
+
+# Setup build locations & extract source
+rm -rf $PKG $BLDDIR
+mkdir -p $PKG $BLDDIR $OUTPUT
+cd $BLDDIR
+if [ -f $SRC/linux-$VERSION.tar.gz ]; then
+  tar zxvf $SRC/linux-$VERSION.tar.gz || exit 1
+elif [ -f $SRC/linux-$VERSION.tar.xz ]; then
+  tar xvf $SRC/linux-$VERSION.tar.xz || exit 1
+else
+  exit 1
+fi
+cd linux-$VERSION
+
+# Configure and build
+make mrproper || exit
+make INSTALL_HDR_PATH=dest headers_install || exit
+find dest/include \( -name .install -o -name ..install.cmd \) -delete || exit
+mkdir -pv $PKG/$PREFIX/include
+cp -rv dest/include/* $PKG/$PREFIX/include || exit
+
+# Pack
+mkdir -p $PKG/$PREFIX/doc/$PRGNAM-$VERSION
+for FILE in AUTHORS COPYING ChangeLog INSTALL README VERSION MAINTAINERS "COPYING.LIB" COPYING3 \
+"COPYING3.LIB" "README-maintainer-mode" COPYINGv3 "COPYING.EXCEPTION" THANKS TODO NEWS PACKAGING \
+MAINT "ABOUT-NLS" "COPYING.RUNTIME" LASTUPDATED MD5SUMS LICENSES CREDITS ANNOUNCE "TO-DO" \
+COPYRIGHT CONTRIBUTING LICENSE CHANGES FAQ RELEASING "BUG-REPORT" "FOR-RELEASE"
+do
+  [ -f ./$FILE ] && cp ./$FILE $PKG/$PREFIX/doc/$PRGNAM-$VERSION
+done
+cat $SBDOC/$PRGNAM$TAG.SlackBuild > $PKG/$PREFIX/doc/$PRGNAM-$VERSION/$PRGNAM$TAG.SlackBuild
+cd $PKG
+/sbin/makepkg -l y -c n $OUTPUT/$PRGNAM-$VERSION-$ARCH-$BUILD$TAG.${PKGTYPE:-tgz}
+

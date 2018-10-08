@@ -1,0 +1,71 @@
+PRGNAM=coreutils
+VERSION=8.29
+ARCH=$( uname -m )
+BUILD=${BUILD:-1}
+TAG=${TAG:-_LFS}
+
+SRC=${SRC:-${LFS}/sources}
+SBDOC=${SBDOC:-${LFS}/sbdoc}
+TMP=${TMP:-/tmp/SBc}
+PKG=$TMP/package-${PRGNAM}
+BLDDIR=$TMP/blddir-${PRGNAM}
+OUTPUT=${OUTPUT:-${LFS}/packages}
+
+PREFIX=/usr
+LFS_TGT=x86_64-lfs-linux-gnu
+
+# Setup build locations & extract source
+rm -rf $PKG $BLDDIR
+mkdir -p $PKG $BLDDIR $OUTPUT
+cd $BLDDIR
+if [ -f $SRC/$PRGNAM-$VERSION.tar.gz ]; then
+  tar zxvf $SRC/$PRGNAM-$VERSION.tar.gz || exit 1
+elif [ -f $SRC/$PRGNAM-$VERSION.tar.xz ]; then
+  tar xvf $SRC/$PRGNAM-$VERSION.tar.xz || exit 1
+else
+  exit 1
+fi
+cd $PRGNAM-$VERSION
+
+# Configure and build
+patch -Np1 -i $SRC/coreutils-8.29-i18n-1.patch || exit
+sed -i '/test.lock/s/^/#/' gnulib-tests/gnulib.mk || exit
+FORCE_UNSAFE_CONFIGURE=1 ./configure \
+            --prefix=$PREFIX         \
+            --build=$LFS_TGT         \
+            --host=$LFS_TGT          \
+            --enable-no-install-program=kill,uptime || exit
+FORCE_UNSAFE_CONFIGURE=1 make || exit
+make NON_ROOT_USERNAME=nobody check-root || exit
+echo "dummy:x:1000:nobody" >> /etc/group || exit
+chown -Rv nobody . || exit
+mkdir -p $PKG/$PREFIX/doc/$PRGNAM-$VERSION
+chown -Rv nobody $PKG || exit
+su nobody -s /bin/bash \
+          -c "PATH=$PATH make RUN_EXPENSIVE_TESTS=yes check &>$PKG/$PREFIX/doc/$PRGNAM-$VERSION/coreutils_make_check_log"
+sed -i '/dummy/d' /etc/group || exit
+chown -Rv root $PKG || exit
+make install DESTDIR=$PKG || exit
+mkdir -pv $PKG/{bin,/usr/sbin,/usr/share/man/man8}
+mv -v $PKG/usr/bin/{cat,chgrp,chmod,chown,cp,date,dd,df,echo} $PKG/bin || exit
+mv -v $PKG/usr/bin/{false,ln,ls,mkdir,mknod,mv,pwd,rm} $PKG/bin || exit
+mv -v $PKG/usr/bin/{rmdir,stty,sync,true,uname} $PKG/bin || exit
+mv -v $PKG/usr/bin/chroot $PKG/usr/sbin || exit
+mv -v $PKG/usr/share/man/man1/chroot.1 $PKG/usr/share/man/man8/chroot.8 || exit
+sed -i s/\"1\"/\"8\"/1 $PKG/usr/share/man/man8/chroot.8 || exit
+mv -v $PKG/usr/bin/{head,sleep,nice} $PKG/bin || exit
+
+# Pack
+gzip -9 $PKG/$PREFIX/man/man1/PRGNAM.*
+mkdir -p $PKG/$PREFIX/doc/$PRGNAM-$VERSION
+for FILE in AUTHORS COPYING ChangeLog INSTALL README VERSION MAINTAINERS "COPYING.LIB" COPYING3 \
+"COPYING3.LIB" "README-maintainer-mode" COPYINGv3 "COPYING.EXCEPTION" THANKS TODO NEWS PACKAGING \
+MAINT "ABOUT-NLS" "COPYING.RUNTIME" LASTUPDATED MD5SUMS LICENSES CREDITS ANNOUNCE "TO-DO" \
+COPYRIGHT CONTRIBUTING LICENSE CHANGES FAQ RELEASING "BUG-REPORT" "FOR-RELEASE"
+do
+  [ -f ./$FILE ] && cp ./$FILE $PKG/$PREFIX/doc/$PRGNAM-$VERSION
+done
+cat $SBDOC/$PRGNAM$TAG.SlackBuild > $PKG/$PREFIX/doc/$PRGNAM-$VERSION/$PRGNAM$TAG.SlackBuild
+cd $PKG
+/sbin/makepkg -l y -c n $OUTPUT/$PRGNAM-$VERSION-$ARCH-$BUILD$TAG.${PKGTYPE:-tgz}
+

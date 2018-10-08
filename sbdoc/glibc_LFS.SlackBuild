@@ -1,0 +1,85 @@
+PRGNAM=glibc
+VERSION=2.27
+ARCH=$( uname -m )
+BUILD=${BUILD:-1}
+TAG=${TAG:-_LFS}
+
+SRC=${SRC:-${LFS}/sources}
+SBDOC=${SBDOC:-${LFS}/sbdoc}
+TMP=${TMP:-/tmp/SBc}
+PKG=$TMP/package-${PRGNAM}
+BLDDIR=$TMP/blddir-${PRGNAM}
+OUTPUT=${OUTPUT:-${LFS}/packages}
+
+PREFIX=/usr
+
+# Setup build locations & extract source
+rm -rf $PKG $BLDDIR
+mkdir -p $PKG $BLDDIR $OUTPUT
+cd $BLDDIR
+if [ -f $SRC/$PRGNAM-$VERSION.tar.gz ]; then
+  tar zxvf $SRC/$PRGNAM-$VERSION.tar.gz || exit 1
+elif [ -f $SRC/$PRGNAM-$VERSION.tar.xz ]; then
+  tar xvf $SRC/$PRGNAM-$VERSION.tar.xz || exit 1
+else
+  exit 1
+fi
+cd $PRGNAM-$VERSION
+
+# Configure and build
+patch -Np1 -i $SRC/glibc-2.27-fhs-1.patch || exit
+if [ ! -h /usr/lib/gcc ]; then
+  ln -sfv /tools/lib/gcc /usr/lib || exit
+fi
+case $(uname -m) in
+  i?86)
+    GCC_INCDIR=/usr/lib/gcc/$(uname -m)-lfs-linux-gnu/7.3.0/include
+    if [ ! -h /lib/ld-lsb.so.3 ]; then
+      ln -sfv ld-linux.so.2 /lib/ld-lsb.so.3 || exit
+    fi
+  ;;
+  x86_64)
+    GCC_INCDIR=/usr/lib/gcc/x86_64-lfs-linux-gnu/7.3.0/include
+    if [ ! -h /lib64/ld-linux-x86-64.so.2 ]; then
+      ln -sfv ../lib/ld-linux-x86-64.so.2 /lib64 || exit
+    fi
+    if [ ! -h /lib64/ld-lsb-x86-64.so.3 ]; then
+      ln -sfv ../lib/ld-linux-x86-64.so.2 /lib64/ld-lsb-x86-64.so.3 || exit
+    fi
+  ;;
+esac
+rm -f /usr/include/limits.h
+mkdir -v build
+cd build
+CC="gcc -isystem $GCC_INCDIR -isystem /usr/include" \
+../configure --prefix=$PREFIX                       \
+             --build=x86_64-lfs-linux-gnu           \
+             --host=x86_64-lfs-linux-gnu            \
+             --disable-werror                       \
+             --enable-kernel=3.2                    \
+             --enable-stack-protector=strong        \
+             libc_cv_slibdir=/lib || exit
+unset GCC_INCDIR
+make || exit
+make -k check >glibc-check-log 2>&1
+touch /etc/ld.so.conf
+sed '/test-installation/s@$(PERL)@echo not running@' -i ../Makefile || exit
+make install DESTDIR=$PKG || exit
+cp -v ../nscd/nscd.conf $PKG/etc/nscd.conf || exit
+mkdir -pv $PKG/var/cache/nscd
+make localedata/install-locales DESTDIR=$PKG || exit
+
+# Pack
+gzip -9 $PKG/$PREFIX/man/man1/PRGNAM.*
+mkdir -p $PKG/$PREFIX/doc/$PRGNAM-$VERSION
+for FILE in AUTHORS COPYING ChangeLog INSTALL README VERSION MAINTAINERS "COPYING.LIB" COPYING3 \
+"COPYING3.LIB" "README-maintainer-mode" COPYINGv3 "COPYING.EXCEPTION" THANKS TODO NEWS PACKAGING \
+MAINT "ABOUT-NLS" "COPYING.RUNTIME" LASTUPDATED MD5SUMS LICENSES CREDITS ANNOUNCE "TO-DO" \
+COPYRIGHT CONTRIBUTING LICENSE CHANGES FAQ RELEASING "BUG-REPORT" "FOR-RELEASE"
+do
+  [ -f ../$FILE ] && cp ../$FILE $PKG/$PREFIX/doc/$PRGNAM-$VERSION
+done
+cat $SBDOC/$PRGNAM$TAG.SlackBuild > $PKG/$PREFIX/doc/$PRGNAM-$VERSION/$PRGNAM$TAG.SlackBuild
+cd $PKG
+/sbin/makepkg -l y -c n $OUTPUT/$PRGNAM-$VERSION-$ARCH-$BUILD$TAG.${PKGTYPE:-tgz}
+

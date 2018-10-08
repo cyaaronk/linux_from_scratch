@@ -1,0 +1,59 @@
+PRGNAM=bzip2
+VERSION=1.0.6
+ARCH=$( uname -m )
+BUILD=${BUILD:-1}
+TAG=${TAG:-_LFS}
+
+SRC=${SRC:-${LFS}/sources}
+SBDOC=${SBDOC:-${LFS}/sbdoc}
+TMP=${TMP:-/tmp/SBc}
+PKG=$TMP/package-${PRGNAM}
+BLDDIR=$TMP/blddir-${PRGNAM}
+OUTPUT=${OUTPUT:-${LFS}/packages}
+
+PREFIX=/usr
+LFS_TGT=x86_64-lfs-linux-gnu
+
+# Setup build locations & extract source
+rm -rf $PKG $BLDDIR
+mkdir -p $PKG $BLDDIR $OUTPUT
+cd $BLDDIR
+if [ -f $SRC/$PRGNAM-$VERSION.tar.gz ]; then
+  tar zxvf $SRC/$PRGNAM-$VERSION.tar.gz || exit 1
+elif [ -f $SRC/$PRGNAM-$VERSION.tar.xz ]; then
+  tar xvf $SRC/$PRGNAM-$VERSION.tar.xz || exit 1
+else
+  exit 1
+fi
+cd $PRGNAM-$VERSION
+
+# Configure and build
+patch -Np1 -i $SRC/bzip2-1.0.6-install_docs-1.patch || exit
+sed -i 's@\(ln -s -f \)$(PREFIX)/bin/@\1@' Makefile || exit
+sed -i "s@(PREFIX)/man@(PREFIX)/share/man@g" Makefile || exit
+make -f Makefile-libbz2_so || exit
+make clean || exit
+make || exit
+make install PREFIX=$PKG/$PREFIX || exit
+mkdir -pv $PKG/{bin,lib}
+cp -v bzip2-shared $PKG/bin/bzip2 || exit
+cp -av libbz2.so* $PKG/lib || exit
+ln -sv ../../lib/libbz2.so.1.0 $PKG/usr/lib/libbz2.so || exit
+rm -v $PKG/usr/bin/{bunzip2,bzcat,bzip2} || exit
+ln -sv bzip2 $PKG/bin/bunzip2 || exit
+ln -sv bzip2 $PKG/bin/bzcat || exit
+
+# Pack
+gzip -9 $PKG/$PREFIX/man/man1/PRGNAM.*
+mkdir -p $PKG/$PREFIX/doc/$PRGNAM-$VERSION
+for FILE in AUTHORS COPYING ChangeLog INSTALL README VERSION MAINTAINERS "COPYING.LIB" COPYING3 \
+"COPYING3.LIB" "README-maintainer-mode" COPYINGv3 "COPYING.EXCEPTION" THANKS TODO NEWS PACKAGING \
+MAINT "ABOUT-NLS" "COPYING.RUNTIME" LASTUPDATED MD5SUMS LICENSES CREDITS ANNOUNCE "TO-DO" \
+COPYRIGHT CONTRIBUTING LICENSE CHANGES FAQ RELEASING "BUG-REPORT" "FOR-RELEASE"
+do
+  [ -f ./$FILE ] && cp ./$FILE $PKG/$PREFIX/doc/$PRGNAM-$VERSION
+done
+cat $SBDOC/$PRGNAM$TAG.SlackBuild > $PKG/$PREFIX/doc/$PRGNAM-$VERSION/$PRGNAM$TAG.SlackBuild
+cd $PKG
+/sbin/makepkg -l y -c n $OUTPUT/$PRGNAM-$VERSION-$ARCH-$BUILD$TAG.${PKGTYPE:-tgz}
+

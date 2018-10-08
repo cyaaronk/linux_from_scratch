@@ -1,0 +1,56 @@
+PRGNAM=acl
+VERSION=2.2.52
+ARCH=$( uname -m )
+BUILD=${BUILD:-1}
+TAG=${TAG:-_LFS}
+
+SRC=${SRC:-${LFS}/sources}
+SBDOC=${SBDOC:-${LFS}/sbdoc}
+TMP=${TMP:-/tmp/SBc}
+PKG=$TMP/package-${PRGNAM}
+BLDDIR=$TMP/blddir-${PRGNAM}
+OUTPUT=${OUTPUT:-${LFS}/packages}
+
+PREFIX=/usr
+LFS_TGT=x86_64-lfs-linux-gnu
+
+# Setup build locations & extract source
+rm -rf $PKG $BLDDIR
+mkdir -p $PKG $BLDDIR $OUTPUT
+cd $BLDDIR
+tar zxvf $SRC/$PRGNAM-$VERSION.src.tar.gz || exit 1
+cd $PRGNAM-$VERSION
+
+# Configure and build
+sed -i -e 's|/@pkg_name@|&-@pkg_version@|' include/builddefs.in || exit
+sed -i "s:| sed.*::g" test/{sbits-restore,cp,misc}.test || exit
+sed -i 's/{(/\\{(/' test/run || exit
+sed -i -e "/TABS-1;/a if (x > (TABS-1)) x = (TABS-1);" \
+    libacl/__acl_to_any_text.c || exit
+./configure --prefix=$PREFIX \
+            --build=$LFS_TGT \
+            --host=$LFS_TGT  \
+            --bindir=/bin    \
+            --disable-static \
+            --libexecdir=/usr/lib || exit
+make || exit
+make install install-dev install-lib DESTDIR=$PKG || exit
+chmod -v 755 $PKG/usr/lib/libacl.so || exit
+mkdir -pv $PKG/lib
+mv -v $PKG/usr/lib/libacl.so.* $PKG/lib || exit
+ln -sfv ../../lib/$(readlink $PKG/usr/lib/libacl.so) $PKG/usr/lib/libacl.so || exit
+
+# Pack
+gzip -9 $PKG/$PREFIX/man/man1/PRGNAM.*
+mkdir -p $PKG/$PREFIX/doc/$PRGNAM-$VERSION
+for FILE in AUTHORS COPYING ChangeLog INSTALL README VERSION MAINTAINERS "COPYING.LIB" COPYING3 \
+"COPYING3.LIB" "README-maintainer-mode" COPYINGv3 "COPYING.EXCEPTION" THANKS TODO NEWS PACKAGING \
+MAINT "ABOUT-NLS" "COPYING.RUNTIME" LASTUPDATED MD5SUMS LICENSES CREDITS ANNOUNCE "TO-DO" \
+COPYRIGHT CONTRIBUTING LICENSE CHANGES FAQ RELEASING "BUG-REPORT" "FOR-RELEASE"
+do
+  [ -f ./$FILE ] && cp ./$FILE $PKG/$PREFIX/doc/$PRGNAM-$VERSION
+done
+cat $SBDOC/$PRGNAM$TAG.SlackBuild > $PKG/$PREFIX/doc/$PRGNAM-$VERSION/$PRGNAM$TAG.SlackBuild
+cd $PKG
+/sbin/makepkg -l y -c n $OUTPUT/$PRGNAM-$VERSION-$ARCH-$BUILD$TAG.${PKGTYPE:-tgz}
+

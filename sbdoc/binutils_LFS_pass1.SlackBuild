@@ -1,0 +1,54 @@
+PRGNAM=binutils
+VERSION=2.30
+ARCH=$( uname -m )
+BUILD=${BUILD:-1}
+TAG=${TAG:-_LFS_pass1}
+
+SRC=${SRC:-${LFS}/sources}
+SBDOC=${SBDOC:-${LFS}/sbdoc}
+TMP=${TMP:-/tmp/SBc}
+PKG=$TMP/package-${PRGNAM}
+BLDDIR=$TMP/blddir-${PRGNAM}
+OUTPUT=${OUTPUT:-${LFS}/packages}
+
+PREFIX=/tools
+
+# Setup build locations & extract source
+rm -rf $PKG $BLDDIR
+mkdir -p $PKG $BLDDIR $OUTPUT
+cd $BLDDIR
+if [ -f $SRC/$PRGNAM-$VERSION.tar.gz ]; then
+  tar zxvf $SRC/$PRGNAM-$VERSION.tar.gz || exit 1
+elif [ -f $SRC/$PRGNAM-$VERSION.tar.xz ]; then
+  tar xvf $SRC/$PRGNAM-$VERSION.tar.xz || exit 1
+else
+  exit 1
+fi
+cd $PRGNAM-$VERSION
+
+# Configure and build
+mkdir -v build
+cd build
+../configure --prefix=$PREFIX \
+             --with-sysroot=$LFS \
+             --with-lib-path=/tools/lib \
+             --target=$LFS_TGT \
+             --disable-nls \
+             --disable-werror || exit
+make || exit
+make install DESTDIR=$PKG || exit
+
+# Pack
+gzip -9 $PKG/$PREFIX/man/man1/PRGNAM.*
+mkdir -p $PKG/$PREFIX/doc/$PRGNAM-$VERSION
+for FILE in AUTHORS COPYING ChangeLog INSTALL README VERSION MAINTAINERS "COPYING.LIB" COPYING3 \
+"COPYING3.LIB" "README-maintainer-mode" COPYINGv3 "COPYING.EXCEPTION" THANKS TODO NEWS PACKAGING \
+MAINT "ABOUT-NLS" "COPYING.RUNTIME" LASTUPDATED MD5SUMS LICENSES CREDITS ANNOUNCE "TO-DO" \
+COPYRIGHT CONTRIBUTING LICENSE CHANGES FAQ RELEASING "BUG-REPORT" "FOR-RELEASE"
+do
+  [ -f ../$FILE ] && cp ../$FILE $PKG/$PREFIX/doc/$PRGNAM-$VERSION
+done
+cat $SBDOC/$PRGNAM$TAG.SlackBuild > $PKG/$PREFIX/doc/$PRGNAM-$VERSION/$PRGNAM$TAG.SlackBuild
+cd $PKG
+/sbin/makepkg -l y -c n $OUTPUT/$PRGNAM-$VERSION-$ARCH-$BUILD$TAG.${PKGTYPE:-tgz}
+

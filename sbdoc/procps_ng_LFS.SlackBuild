@@ -1,0 +1,63 @@
+PRGNAM=procps_ng
+VERSION=3.3.12
+ARCH=$( uname -m )
+BUILD=${BUILD:-1}
+TAG=${TAG:-_LFS}
+
+SRC=${SRC:-${LFS}/sources}
+SBDOC=${SBDOC:-${LFS}/sbdoc}
+TMP=${TMP:-/tmp/SBc}
+PKG=$TMP/package-${PRGNAM}
+BLDDIR=$TMP/blddir-${PRGNAM}
+OUTPUT=${OUTPUT:-${LFS}/packages}
+
+PREFIX=/usr
+LFS_TGT=x86_64-lfs-linux-gnu
+
+# Setup build locations & extract source
+rm -rf $PKG $BLDDIR
+mkdir -p $PKG $BLDDIR $OUTPUT
+cd $BLDDIR
+if [ -f $SRC/procps-ng-$VERSION.tar.gz ]; then
+  tar zxvf $SRC/procps-ng-$VERSION.tar.gz || exit 1
+elif [ -f $SRC/procps-ng-$VERSION.tar.xz ]; then
+  tar xvf $SRC/procps-ng-$VERSION.tar.xz || exit 1
+else
+  exit 1
+fi
+cd procps-ng-$VERSION
+
+# Configure and build
+./configure --prefix=$PREFIX                         \
+            --build=$LFS_TGT                         \
+            --host=$LFS_TGT                          \
+            --exec-prefix=                           \
+            --libdir=/usr/lib                        \
+            --docdir=/usr/share/doc/procps-ng-3.3.12 \
+            --disable-static                         \
+            --disable-kill || exit
+make || exit
+sed -i -r 's|(pmap_initname)\\\$|\1|' testsuite/pmap.test/pmap.exp || exit
+sed -i '/set tty/d' testsuite/pkill.test/pkill.exp || exit
+rm testsuite/pgrep.test/pgrep.exp || exit
+mkdir -p $PKG/$PREFIX/doc/$PRGNAM-$VERSION
+make check &>$PKG/$PREFIX/doc/$PRGNAM-$VERSION/procps_ng_make_check_log
+make install DESTDIR=$PKG || exit
+mkdir -pv $PKG/lib
+mv -v $PKG/usr/lib/libprocps.so.* $PKG/lib || exit
+ln -sfv ../../lib/$(readlink $PKG/usr/lib/libprocps.so) $PKG/usr/lib/libprocps.so || exit
+
+# Pack
+gzip -9 $PKG/$PREFIX/man/man1/PRGNAM.*
+mkdir -p $PKG/$PREFIX/doc/$PRGNAM-$VERSION
+for FILE in AUTHORS COPYING ChangeLog INSTALL README VERSION MAINTAINERS "COPYING.LIB" COPYING3 \
+"COPYING3.LIB" "README-maintainer-mode" COPYINGv3 "COPYING.EXCEPTION" THANKS TODO NEWS PACKAGING \
+MAINT "ABOUT-NLS" "COPYING.RUNTIME" LASTUPDATED MD5SUMS LICENSES CREDITS ANNOUNCE "TO-DO" \
+COPYRIGHT CONTRIBUTING LICENSE CHANGES FAQ RELEASING "BUG-REPORT" "FOR-RELEASE"
+do
+  [ -f ./$FILE ] && cp ./$FILE $PKG/$PREFIX/doc/$PRGNAM-$VERSION
+done
+cat $SBDOC/$PRGNAM$TAG.SlackBuild > $PKG/$PREFIX/doc/$PRGNAM-$VERSION/$PRGNAM$TAG.SlackBuild
+cd $PKG
+/sbin/makepkg -l y -c n $OUTPUT/$PRGNAM-$VERSION-$ARCH-$BUILD$TAG.${PKGTYPE:-tgz}
+

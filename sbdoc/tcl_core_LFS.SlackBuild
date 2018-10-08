@@ -1,0 +1,53 @@
+PRGNAM=tcl_core
+VERSION=8.6.8
+ARCH=$( uname -m )
+BUILD=${BUILD:-1}
+TAG=${TAG:-_LFS}
+
+SRC=${SRC:-${LFS}/sources}
+SBDOC=${SBDOC:-${LFS}/sbdoc}
+TMP=${TMP:-/tmp/SBc}
+PKG=$TMP/package-${PRGNAM}
+BLDDIR=$TMP/blddir-${PRGNAM}
+OUTPUT=${OUTPUT:-${LFS}/packages}
+
+PREFIX=/tools
+
+# Setup build locations & extract source
+rm -rf $PKG $BLDDIR
+mkdir -p $PKG $BLDDIR $OUTPUT
+cd $BLDDIR
+if [ -f $SRC/tcl${VERSION}-src.tar.gz ]; then
+  tar zxvf $SRC/tcl${VERSION}-src.tar.gz || exit 1
+elif [ -f $SRC/tcl${VERSION}-src.tar.xz ]; then
+  tar xvf $SRC/tcl${VERSION}-src.tar.xz || exit 1
+else
+  exit 1
+fi
+cd tcl$VERSION
+
+# Configure and build
+cd unix
+./configure --prefix=$PREFIX \
+            --host=$LFS_TGT  || exit
+make || exit
+TZ=UTC make test || exit
+make install DESTDIR=$PKG || exit
+chmod -v u+w $PKG/tools/lib/libtcl8.6.so || exit
+make install-private-headers DESTDIR=$PKG || exit 
+ln -sv tclsh8.6 $PKG/tools/bin/tclsh || exit
+
+# Pack
+gzip -9 $PKG/$PREFIX/man/man1/PRGNAM.*
+mkdir -p $PKG/$PREFIX/doc/$PRGNAM-$VERSION
+for FILE in AUTHORS COPYING ChangeLog INSTALL README VERSION MAINTAINERS "COPYING.LIB" COPYING3 \
+"COPYING3.LIB" "README-maintainer-mode" COPYINGv3 "COPYING.EXCEPTION" THANKS TODO NEWS PACKAGING \
+MAINT "ABOUT-NLS" "COPYING.RUNTIME" LASTUPDATED MD5SUMS LICENSES CREDITS ANNOUNCE "TO-DO" \
+COPYRIGHT CONTRIBUTING LICENSE CHANGES FAQ RELEASING "BUG-REPORT" "FOR-RELEASE"
+do
+  [ -f ../$FILE ] && cp ../$FILE $PKG/$PREFIX/doc/$PRGNAM-$VERSION
+done
+cat $SBDOC/$PRGNAM$TAG.SlackBuild > $PKG/$PREFIX/doc/$PRGNAM-$VERSION/$PRGNAM$TAG.SlackBuild
+cd $PKG
+/sbin/makepkg -l y -c n $OUTPUT/$PRGNAM-$VERSION-$ARCH-$BUILD$TAG.${PKGTYPE:-tgz}
+
