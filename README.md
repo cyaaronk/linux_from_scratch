@@ -45,7 +45,8 @@ gzip -9 -r $PKG/usr/share/man
 ## Tripwire
 
 As tripwire is installed using SlackBuild script, the local and site passwords have to be changed after installing the package.
-And its config files need to be signed by the new keys.
+Edit the config and pol files and sign them with the new keys.
+Delete the pol file afterwards.
 
 The steps are as follows:
 
@@ -60,6 +61,7 @@ twadmin --create-cfgfile --cfgfile $DIR/tw.cfg \
         --site-keyfile $SITE_KEY $DIR/twcfg.txt
 twadmin --create-polfile --cfgfile $DIR/tw.cfg \
         --site-keyfile $SITE_KEY $DIR/twpol.txt
+shred   -v -u /etc/tripwire/twpol.txt
 ```
 
 reference: http://www.linuxfromscratch.org/blfs/downloads/8.2/BLFS-BOOK-8.2-nochunks.html#tripwire
